@@ -1,0 +1,33 @@
+{
+  "name": "satisfactory",
+  "version": "0.0.0",
+  "description": "satisfactory pulumi set-upper",
+  "main": "index.js",
+  "scripts": {
+    "lint": "eslint . --fix",
+    "test": "echo 'wut tests'"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+ssh://git@github.com/one19/satisfactory.git"
+  },
+  "keywords": [
+    "satisfactory",
+    "aws",
+    "pulumi"
+  ],
+  "author": "one19",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/one19/satisfactory/issues"
+  },
+  "homepage": "https://github.com/one19/satisfactory#readme",
+  "dependencies": {
+    "@pulumi/aws": "^4.29.0",
+    "@pulumi/awsx": "^0.32.0",
+    "@pulumi/pulumi": "^3.18.1"
+  },
+  "devDependencies": {
+    "@brightsole/eslint-config-lint-node-ts": "^0.1.1"
+  }
+}

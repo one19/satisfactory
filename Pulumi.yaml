@@ -1,0 +1,3 @@
+name: satisfactory
+runtime: nodejs
+description: a game server infrastructure setup
