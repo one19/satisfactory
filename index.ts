@@ -36,7 +36,7 @@ const service = new awsx.ecs.FargateService('satisfactory', {
         image: 'wolveix/satisfactory-server:latest',
         memory: 8192,
         healthCheck: {
-          command: ['ps aux | grep satisfactory'],
+          command: ['CMD-SHELL', 'echo hi || exit 1'],
         },
         environment: [
           { name: 'STEAMUSER', value: 'anonymous' },
