@@ -6,7 +6,35 @@ import * as awsx from '@pulumi/awsx';
 //   vpc: true,
 // });
 
-// const satCluster = new awsx.ecs.Cluster('satisfactory-cluster');
+const sg = new awsx.ec2.SecurityGroup('satisfactory-security-group');
+awsx.ec2.SecurityGroupRule.ingress(
+  'satisfactory-7777',
+  sg,
+  new awsx.ec2.AnyIPv4Location(),
+  new awsx.ec2.TcpPorts(7777),
+  'allow satisfactory 7777'
+);
+awsx.ec2.SecurityGroupRule.ingress(
+  'satisfactory-15000',
+  sg,
+  new awsx.ec2.AnyIPv4Location(),
+  new awsx.ec2.TcpPorts(15000),
+  'allow satisfactory 15000'
+);
+awsx.ec2.SecurityGroupRule.ingress(
+  'satisfactory-15777',
+  sg,
+  new awsx.ec2.AnyIPv4Location(),
+  new awsx.ec2.TcpPorts(15777),
+  'allow satisfactory 15777'
+);
+awsx.ec2.SecurityGroupRule.egress(
+  'all',
+  sg,
+  new awsx.ec2.AnyIPv4Location(),
+  new awsx.ec2.TcpPorts(0, 0),
+  'allow all'
+);
 
 // const satServer = new awsx.ecs.EC2Service('satisfactory', {
 //   cluster: satCluster,
@@ -17,27 +45,33 @@ import * as awsx from '@pulumi/awsx';
 //   },
 // });
 
-const listener7777 = new awsx.elasticloadbalancingv2.NetworkListener('satisfactory-7777', {
+const cluster = new awsx.ecs.Cluster('satisfactory-cluster', { securityGroups: [sg] });
+
+// still failing healthchecks; are these the problem???
+const nlb = new awsx.lb.NetworkLoadBalancer('satisfactory-nlb', { external: true });
+const listener7777 = nlb.createListener('satisfactory-7777', {
   port: 7777,
 });
-const listener15000 = new awsx.elasticloadbalancingv2.NetworkListener('satisfactory-15000', {
+const listener15000 = nlb.createListener('satisfactory-15000', {
   port: 15000,
 });
-const listener15777 = new awsx.elasticloadbalancingv2.NetworkListener('satisfactory-15777', {
+const listener15777 = nlb.createListener('satisfactory-15777', {
   port: 15777,
 });
 
 // Define the service, building and publishing our "./app/Dockerfile", and using the load balancer.
-const service = new awsx.ecs.FargateService('satisfactory', {
+new awsx.ecs.FargateService('satisfactory', {
+  cluster,
   desiredCount: 1,
+  // loadBalancers: [nlb],
   taskDefinitionArgs: {
     containers: {
       satisfactory: {
         image: 'wolveix/satisfactory-server:latest',
         memory: 8192,
-        healthCheck: {
-          command: ['CMD-SHELL', 'echo hi || exit 1'],
-        },
+        // healthCheck: {
+        //   startPeriod: 300,
+        // },
         environment: [
           { name: 'STEAMUSER', value: 'anonymous' },
           { name: 'STEAMBETA', value: 'false' },
@@ -50,5 +84,7 @@ const service = new awsx.ecs.FargateService('satisfactory', {
 });
 
 // Export the URL so we can easily access it.
-export const fargateService = service;
-export const satisfactoryURL = pulumi.interpolate`http://${listener7777.endpoint.hostname}/`;
+// export const nlbstuff = nlb;
+export const url1 = pulumi.interpolate`http://${listener7777.endpoint.hostname}/`;
+export const url2 = pulumi.interpolate`http://${listener15000.endpoint.hostname}/`;
+export const url3 = pulumi.interpolate`http://${listener15777.endpoint.hostname}/`;
