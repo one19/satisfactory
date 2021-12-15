@@ -2,7 +2,7 @@
   "name": "satisfactory",
   "version": "0.0.0",
   "description": "satisfactory pulumi set-upper",
-  "main": "index.js",
+  "main": "index.ts",
   "scripts": {
     "lint": "eslint . --fix",
     "test": "echo 'wut tests'"
