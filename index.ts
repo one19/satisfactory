@@ -1,152 +1,98 @@
-// import * as pulumi from '@pulumi/pulumi';
 import * as aws from '@pulumi/aws';
-import * as awsx from '@pulumi/awsx';
 
-// const VPCID = 'vpc-c63229a1';
-const subnetIds = ['subnet-bde023db', 'subnet-a654a9ee', 'subnet-9b9eecc3'];
-
-const sg = new awsx.ec2.SecurityGroup('satisfactory-security-group');
-awsx.ec2.SecurityGroupRule.ingress(
-  'satisfactory-7777',
-  sg,
-  new awsx.ec2.AnyIPv4Location(),
-  new awsx.ec2.UdpPorts(7777),
-  'allow satisfactory 7777'
-);
-awsx.ec2.SecurityGroupRule.ingress(
-  'satisfactory-15000',
-  sg,
-  new awsx.ec2.AnyIPv4Location(),
-  new awsx.ec2.UdpPorts(15000),
-  'allow satisfactory 15000'
-);
-awsx.ec2.SecurityGroupRule.ingress(
-  'satisfactory-15777',
-  sg,
-  new awsx.ec2.AnyIPv4Location(),
-  new awsx.ec2.UdpPorts(15777),
-  'allow satisfactory 15777'
-);
-awsx.ec2.SecurityGroupRule.egress(
-  'all',
-  sg,
-  new awsx.ec2.AnyIPv4Location(),
-  new awsx.ec2.AllTraffic(),
-  'allow all'
-);
-
-const cluster = new awsx.ecs.Cluster('satisfactory-cluster', { securityGroups: [sg] });
-cluster.createAutoScalingGroup('satisfactory-group', {
-  subnetIds,
-  templateParameters: { minSize: 1 },
-  launchConfigurationArgs: { instanceType: 't2.large', imageId: 'ami-0ea87b9ed0e286f93' },
+// Get the latest Amazon Linux 2 AMI
+const ami = aws.ec2.getAmi({
+  owners: ['amazon'],
+  filters: [{ name: 'name', values: ['amzn2-ami-hvm-2.0.*-x86_64-gp2'] }],
+  mostRecent: true,
 });
 
-// still failing healthchecks; are these the problem???
-const nlb = new awsx.lb.NetworkLoadBalancer('satisfactory-nlb', { external: true });
-
-const target7777 = nlb.createTargetGroup('satisfactory-7777', {
-  port: 7777,
-  protocol: 'UDP',
-});
-const listener7777 = target7777.createListener('satisfactory-7777', {
-  port: 7777,
-  protocol: 'UDP',
-});
-
-const target15000 = nlb.createTargetGroup('satisfactory-15000', {
-  port: 15000,
-  protocol: 'UDP',
-});
-const listener15000 = target15000.createListener('satisfactory-15000', {
-  port: 15000,
-  protocol: 'UDP',
-});
-
-const target15777 = nlb.createTargetGroup('satisfactory-15777', {
-  port: 15777,
-  protocol: 'UDP',
-});
-const listener15777 = target15777.createListener('satisfactory-15777', {
-  port: 15777,
-  protocol: 'UDP',
-});
-
-const efsFs = new aws.efs.FileSystem('satisfactory-volume', {
-  availabilityZoneName: 'ap-southeast-2a',
-  encrypted: false,
-  tags: {
-    Name: 'satisfactory-config-fs',
-  },
-});
-
-// new aws.ec2.Instance('satisfactory-large', {
-//   ami: 'amzn2-ami-kernel-5.10-hvm-2.0.20211201.0-x86_64-gp2',
-//   instanceType: 't2.large',
-//   vpcSecurityGroupIds: [sg.id],
-// });
-
-new awsx.ecs.EC2Service('satisfactory', {
-  cluster,
-  desiredCount: 1,
-  loadBalancers: [
+// Create a security group to allow port 7777 TCP and UDP
+const securityGroup = new aws.ec2.SecurityGroup('satisfactory-sg', {
+  description: 'Allow port 7777 TCP and UDP',
+  ingress: [
     {
-      targetGroupArn: target7777.targetGroup.arn,
-      containerName: 'satisfactory',
-      containerPort: 7777,
+      protocol: 'tcp',
+      fromPort: 7777,
+      toPort: 7777,
+      cidrBlocks: ['0.0.0.0/0'],
     },
     {
-      targetGroupArn: target15000.targetGroup.arn,
-      containerName: 'satisfactory',
-      containerPort: 15000,
-    },
-    {
-      targetGroupArn: target15777.targetGroup.arn,
-      containerName: 'satisfactory',
-      containerPort: 15777,
+      protocol: 'udp',
+      fromPort: 7777,
+      toPort: 7777,
+      cidrBlocks: ['0.0.0.0/0'],
     },
   ],
-  taskDefinitionArgs: {
-    volumes: [
-      {
-        name: 'service-storage',
-        dockerVolumeConfiguration: {
-          scope: 'shared',
-          autoprovision: true,
-          driver: 'local',
-          driverOpts: {
-            type: 'nfs',
-            device: `${efsFs.dnsName}:/`,
-            o: `addr=${efsFs.dnsName},rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport`,
-          },
-        },
-      },
-    ],
-    containers: {
-      satisfactory: {
-        image: 'wolveix/satisfactory-server:latest',
-        memory: 7000,
-        // healthCheck: {
-        //   startPeriod: 300,
-        //   command: ['CMD-SHELL', 'echo hi || exit 1'],
-        // },
-        environment: [
-          { name: 'STEAMUSER', value: 'anonymous' },
-          { name: 'STEAMBETA', value: 'false' },
-          { name: 'MAXBACKUPS', value: '10' },
-        ],
-        mountPoints: [
-          {
-            containerPath: '/config',
-            readOnly: false,
-            sourceVolume: 'service-storage',
-          },
-        ],
-        portMappings: [listener7777, listener15000, listener15777],
-      },
+  egress: [
+    {
+      protocol: '-1', // Allow all outbound traffic
+      fromPort: 0,
+      toPort: 0,
+      cidrBlocks: ['0.0.0.0/0'],
     },
-  },
+  ],
 });
 
+// Define the availability zone
+const availabilityZone = 'ap-southeast-2'; // Adjust as needed
+
+// Create a high-speed EBS volume
+const ebsVolume = new aws.ebs.Volume('satisfactory-volume', {
+  availabilityZone,
+  size: 100, // Size in GB
+  type: 'gp3', // High-performance volume type
+});
+
+// Define the user data script for instance initialization
+const userDataScript = `#!/bin/bash
+# Update packages
+yum update -y
+
+# Install Docker
+amazon-linux-extras install docker -y
+service docker start
+usermod -a -G docker ec2-user
+
+# Wait for the volume to be attached
+while [ ! -e /dev/xvdf ]; do sleep 1; done
+
+# Format and mount the volume
+mkfs -t ext4 /dev/xvdf
+mkdir /config
+mount /dev/xvdf /config
+echo "/dev/xvdf /config ext4 defaults,nofail 0 2" >> /etc/fstab
+
+# Run the Docker container with /config mounted
+docker run -d -v /config:/config -p 7777:7777/tcp -p 7777:7777/udp wolveix/satisfactory-server:latest
+`;
+
+// Create the EC2 instance
+const ec2Instance = new aws.ec2.Instance('satisfactory-instance', {
+  ami: ami.then((a) => a.id),
+  instanceType: 'm5.xlarge', // Updated instance type
+  availabilityZone,
+  securityGroups: [securityGroup.name],
+  userData: userDataScript,
+});
+
+// Attach the EBS volume to the instance
+// eslint-disable-next-line @typescript-eslint/no-unused-vars, no-unused-vars
+const volumeAttachment = new aws.ec2.VolumeAttachment(
+  'volume-attachment',
+  {
+    deviceName: '/dev/sdf',
+    instanceId: ec2Instance.id,
+    volumeId: ebsVolume.id,
+  },
+  { dependsOn: [ec2Instance] }
+);
+
+// Allocate an Elastic IP and associate it with the instance
+const elasticIp = new aws.ec2.Eip('satisfactory-eip', {
+  instance: ec2Instance.id,
+});
+
+// Export the public IP address of the instance
 // eslint-disable-next-line import/prefer-default-export
-export const url = listener7777.endpoint.hostname;
+export const { publicIp } = elasticIp;
