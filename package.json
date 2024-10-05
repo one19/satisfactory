@@ -23,11 +23,11 @@
   },
   "homepage": "https://github.com/one19/satisfactory#readme",
   "dependencies": {
-    "@pulumi/aws": "^4.29.0",
-    "@pulumi/awsx": "^0.32.0",
-    "@pulumi/pulumi": "^3.18.1"
+    "@pulumi/aws": "^6.54.2",
+    "@pulumi/awsx": "^2.16.1",
+    "@pulumi/pulumi": "^3.135.1"
   },
   "devDependencies": {
-    "@brightsole/eslint-config-lint-node-ts": "^0.1.1"
+    "@brightsole/eslint-config-lint-node-ts": "^0.1.2"
   }
 }
